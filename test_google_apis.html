@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Google Maps API Key Test</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px;
+      background: #0f1419;
+      color: #e7ecf3;
+      line-height: 1.5;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+    .sub { color: #8b9cb3; font-size: 0.9rem; margin-bottom: 1.5rem; }
+    label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
+    input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #3d4f66;
+      border-radius: 8px;
+      background: #1a2332;
+      color: #fff;
+      font-family: ui-monospace, monospace;
+      font-size: 0.85rem;
+    }
+    .row { margin-bottom: 1rem; }
+    button {
+      background: #1a73e8;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-right: 8px;
+    }
+    button:hover { background: #1557b0; }
+    button.secondary { background: #3d4f66; }
+    .note {
+      background: #1a2332;
+      border-left: 4px solid #f9ab00;
+      padding: 12px 14px;
+      margin: 1rem 0;
+      font-size: 0.88rem;
+      border-radius: 0 8px 8px 0;
+    }
+    .api-list { margin: 1rem 0; padding-left: 1.2rem; }
+    .api-list li { margin: 0.25rem 0; }
+    #results { margin-top: 1.5rem; }
+    .card {
+      background: #1a2332;
+      border: 1px solid #3d4f66;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .card.ok { border-color: #34a853; }
+    .card.fail { border-color: #ea4335; }
+    .card h3 { margin: 0 0 8px; font-size: 1rem; }
+    .status { font-weight: 700; }
+    .status.ok { color: #34a853; }
+    .status.fail { color: #ea4335; }
+    .msg { font-size: 0.85rem; color: #8b9cb3; margin-top: 6px; white-space: pre-wrap; }
+    .preview { margin-top: 10px; }
+    .preview img {
+      max-width: 100%;
+      border-radius: 8px;
+      border: 1px solid #3d4f66;
+    }
+    #summary {
+      font-size: 1.05rem;
+      font-weight: 600;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 8px;
+    }
+    #summary.all-ok { background: #0d3320; color: #81c995; }
+    #summary.has-fail { background: #3c1a1a; color: #f28b82; }
+    a { color: #8ab4f8; }
+  </style>
+</head>
+<body>
+  <h1>Google Maps API Key Test</h1>
+  <p class="sub">API key test: Geocoding, Maps Static, Street View Static.</p>
+
+  <div class="note">
+    <code>python -m http.server 8080</code> —
+    <a href="http://localhost:8080/test_google_apis.html" id="localLink">test_google_apis.html</a>.
+    Referrer keys: <code>http://localhost:8080/*</code>
+  </div>
+
+  <p><strong>APIs</strong></p>
+  <ul class="api-list">
+    <li>Geocoding API</li>
+    <li>Maps Static API</li>
+    <li>Street View Static API</li>
+  </ul>
+
+  <div class="row">
+    <label for="apiKey">API key</label>
+    <input type="text" id="apiKey" placeholder="AIzaSy..." autocomplete="off" />
+  </div>
+
+  <div class="row">
+    <button type="button" id="btnTest">Test all APIs</button>
+    <button type="button" class="secondary" id="btnClear">Clear results</button>
+  </div>
+
+  <div id="summary" style="display:none;"></div>
+  <div id="results"></div>
+
+  <script>
+    const LOCATION = "40.7128,-74.0060";
+    const ADDRESS = "New York, NY";
+
+    const params = new URLSearchParams(window.location.search);
+    const keyInput = document.getElementById("apiKey");
+    if (params.get("key")) {
+      keyInput.value = params.get("key");
+    } else {
+      try {
+        const saved = localStorage.getItem("gmp_test_key");
+        if (saved) keyInput.value = saved;
+      } catch (_) {}
+    }
+
+    document.getElementById("localLink").href =
+      "http://localhost:8080/test_google_apis.html";
+
+    function getKey() {
+      const k = keyInput.value.trim();
+      if (!k) throw new Error("Paste your API key first.");
+      try { localStorage.setItem("gmp_test_key", k); } catch (_) {}
+      return k;
+    }
+
+    function card(title, ok, message, imageUrl) {
+      const el = document.createElement("div");
+      el.className = "card " + (ok ? "ok" : "fail");
+      el.innerHTML =
+        "<h3>" + title + "</h3>" +
+        '<div class="status ' + (ok ? "ok" : "fail") + '">' +
+        (ok ? "OK" : "FAILED") + "</div>" +
+        '<div class="msg">' + escapeHtml(message) + "</div>";
+      if (imageUrl) {
+        const p = document.createElement("div");
+        p.className = "preview";
+        const img = document.createElement("img");
+        img.src = imageUrl;
+        img.alt = title;
+        p.appendChild(img);
+        el.appendChild(p);
+      }
+      return el;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    async function testGeocoding(key) {
+      const url =
+        "https://maps.googleapis.com/maps/api/geocode/json?" +
+        new URLSearchParams({ address: ADDRESS, key });
+      const res = await fetch(url);
+      const data = await res.json();
+      console.log("[Geocoding API]", data);
+      if (data.status === "OK" && data.results?.length) {
+        return {
+          ok: true,
+          msg: "Geocoded: " + data.results[0].formatted_address,
+        };
+      }
+      return {
+        ok: false,
+        msg: (data.status || "ERROR") + "\n" + (data.error_message || JSON.stringify(data)),
+      };
+    }
+
+    function testImageApi(name, url) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          console.log("[" + name + "]", "OK", url.split("?")[0] + "?...");
+          resolve({ ok: true, msg: "Image loaded successfully.", imageUrl: url });
+        };
+        img.onerror = () => {
+          console.error("[" + name + "]", "FAILED to load image");
+          resolve({
+            ok: false,
+            msg:
+              "Image failed to load. Common causes:\n" +
+              "- API not enabled on project\n" +
+              "- API key restrictions do not include this API\n" +
+              "- Billing not enabled\n" +
+              "Check Console Network tab for the image request response.",
+          });
+        };
+        img.src = url;
+      });
+    }
+
+    function testMapsStatic(key) {
+      const url =
+        "https://maps.googleapis.com/maps/api/staticmap?" +
+        new URLSearchParams({
+          center: LOCATION,
+          zoom: "15",
+          size: "400x300",
+          maptype: "satellite",
+          key,
+        });
+      return testImageApi("Maps Static API", url);
+    }
+
+    async function testStreetViewMetadata(key) {
+      const url =
+        "https://maps.googleapis.com/maps/api/streetview/metadata?" +
+        new URLSearchParams({ location: LOCATION, key });
+      const res = await fetch(url);
+      const data = await res.json();
+      console.log("[Street View Static API - metadata]", data);
+      if (data.status === "OK") {
+        return {
+          ok: true,
+          msg: "Panorama found. Pano: " + (data.pano_id || "n/a"),
+        };
+      }
+      return {
+        ok: false,
+        msg: (data.status || "ERROR") + "\n" + (data.error_message || ""),
+      };
+    }
+
+    function testStreetViewImage(key) {
+      const url =
+        "https://maps.googleapis.com/maps/api/streetview?" +
+        new URLSearchParams({
+          size: "400x300",
+          location: LOCATION,
+          key,
+        });
+      return testImageApi("Street View Static API - image", url);
+    }
+
+    async function runAllTests() {
+      const resultsEl = document.getElementById("results");
+      const summaryEl = document.getElementById("summary");
+      resultsEl.innerHTML = "";
+      summaryEl.style.display = "none";
+
+      let key;
+      try {
+        key = getKey();
+      } catch (e) {
+        alert(e.message);
+        return;
+      }
+
+      if (location.protocol === "file:") {
+        const warn = document.createElement("div");
+        warn.className = "note";
+        warn.innerHTML =
+          "You opened this as <code>file://</code>. Geocoding fetch may fail due to CORS. " +
+          "Use <code>python -m http.server 8080</code> and open via <code>http://localhost:8080/...</code>";
+        resultsEl.appendChild(warn);
+      }
+
+      const tests = [
+        { title: "1. Geocoding API", run: () => testGeocoding(key) },
+        { title: "2. Maps Static API", run: () => testMapsStatic(key) },
+        {
+          title: "3. Street View Static API (metadata)",
+          run: () => testStreetViewMetadata(key),
+        },
+        {
+          title: "4. Street View Static API (image)",
+          run: () => testStreetViewImage(key),
+        },
+      ];
+
+      let passed = 0;
+      for (const t of tests) {
+        const loading = card(t.title, false, "Testing...");
+        resultsEl.appendChild(loading);
+        try {
+          const r = await t.run();
+          loading.replaceWith(card(t.title, r.ok, r.msg, r.imageUrl));
+          if (r.ok) passed++;
+        } catch (err) {
+          console.error(t.title, err);
+          loading.replaceWith(
+            card(
+              t.title,
+              false,
+              (err.message || err) +
+                "\n\nIf CORS error: serve via http://localhost (see note above)."
+            )
+          );
+        }
+      }
+
+      const coreOk =
+        passed >= 3;
+      summaryEl.style.display = "block";
+      summaryEl.className = coreOk ? "all-ok" : "has-fail";
+      summaryEl.textContent =       coreOk
+        ? "All tests passed."
+        : "Some tests failed. Check API key and Cloud Console settings.";
+    }
+
+    document.getElementById("btnTest").addEventListener("click", runAllTests);
+    document.getElementById("btnClear").addEventListener("click", () => {
+      document.getElementById("results").innerHTML = "";
+      document.getElementById("summary").style.display = "none";
+    });
+  </script>
+</body>
+</html>

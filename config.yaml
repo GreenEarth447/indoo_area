@@ -1,0 +1,8 @@
+buildings_file: buildings_demo.yaml
+data_mode: google
+image_size: 640
+satellite_zoom: 19
+streetview_size: 640
+indoor_efficiency_factor: 0.88
+streetview_headings: [0, 90, 180, 270]
+streetview_max_views: 4
